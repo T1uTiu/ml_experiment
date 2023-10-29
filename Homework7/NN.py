@@ -49,8 +49,8 @@ def networkBackward(Y, A, W):
       ##### Calculate the partial derivatives of all w and b in each layer dW[i] and dB[i], where i = 1, 2, ..., l
       g = A[-1]-Y
       for i in range(l-1,-1,-1):
-            dW[i] = A[i].T@g
-            dB[i] = np.sum(g, axis=0)
+            dW[i] = A[i].T@g / n
+            dB[i] = np.sum(g, axis=0) /n
             g = A[i]*(1-A[i])*(g@W[i].T)
 
       return dW, dB
@@ -105,8 +105,8 @@ def test(Y, X, W, B):
       
       return acc
 
-iterations = 1000 ###### Training loops
-lr = 0.00075 ###### Learning rate
+iterations = 3000 ###### Training loops
+lr = 1 ###### Learning rate
 
 data = np.load("data.npy")
 
