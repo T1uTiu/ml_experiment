@@ -47,11 +47,11 @@ def networkBackward(Y, A, W):
       dB = [None for _ in range(l)]
       
       ##### Calculate the partial derivatives of all w and b in each layer dW[i] and dB[i], where i = 1, 2, ..., l
-      g = A[-1]-Y
+      dZ = A[-1]-Y
       for i in range(l-1,-1,-1):
-            dW[i] = A[i].T@g / n
-            dB[i] = np.sum(g, axis=0) /n
-            g = A[i]*(1-A[i])*(g@W[i].T)
+            dW[i] = A[i].T@dZ / n
+            dB[i] = np.sum(dZ, axis=0) /n
+            dZ = A[i]*(1-A[i])*(dZ@W[i].T)
 
       return dW, dB
 #--------------------------
