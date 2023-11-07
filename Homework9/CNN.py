@@ -8,17 +8,18 @@ plt.ion()
 def onehotEncoder(Y, ny):
     return np.eye(ny)[Y]
 
+
 #Compute the cost function
 def cost(Y_hat, Y):
     n = Y.shape[0]
-    c = -np.sum(Y*np.log(Y_hat)) / n
+    c = -np.sum(Y*np.log(Y_hat+1e-9)) / n
     
     return c
 
 def test(Y_hat, Y):
     Y_out = np.zeros_like(Y)
     
-    idx = np.argmax(Y_hat[-1], axis=1)
+    idx = np.argmax(Y_hat, axis=1)
     Y_out[range(Y.shape[0]),idx] = 1
     acc = np.sum(Y_out*Y) / Y.shape[0]
     print("Training accuracy is: %f" %(acc))
@@ -26,14 +27,8 @@ def test(Y_hat, Y):
     return acc
 
 
-iteration = 100###### Training loops
-lr = 0.1###### Learning rate
-n_layer = 3###### The number of layers
-n_filter = 1###### The number of convolutional kernels in each layer
-kernel_size = 3###### The size of convolutional kernels
-padding = 1###### The size of padding
-stride = 1###### The size of stride
-pool_size = 2###### The size of pooling kernels
+iteration = 500###### Training loops
+lr = 0.00075###### Learning rate
 
 data = np.load("data.npy")
 
@@ -43,71 +38,84 @@ Y = data[:,-1].astype(np.int32)
 Y = onehotEncoder(Y, 10)
 
 class ConvolutionLayer:
-    def __init__(self, in_shape, out_channels, kernel_size, padding,stride, lr=0.01):
+    def __init__(self, in_shape, out_channels, kernel_size, padding,stride):
         self.kernel_size, self.padding, self.stride = kernel_size, padding, stride
         self.out_channels = out_channels
         self.batchsize, self.in_channels, self.l_in, _ = in_shape
-        self.lr = lr
 
-        self.W = np.random.randn(self.out_channels, self.in_channels, kernel_size, kernel_size)
+        self.W = np.random.standard_normal(0(self.out_channels, self.in_channels, kernel_size, kernel_size))
         self.b = np.random.rand(self.out_channels)
 
         self.relu = lambda x: max(0,x)
     
-    def img2col(self, X, l_out, in_channels):
-        # l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
-        X_col = np.zeros((self.batchsize*l_out*l_out, in_channels*self.kernel_size*self.kernel_size))
-        outsize = l_out*l_out
-        for i in range(l_out):
-            for j in range(l_out):
-                X_col[i*l_out::outsize, :] = X[:, :, i*self.stride:i*self.stride+self.kernel_size, j*self.stride:j*self.stride+self.kernel_size].reshape(self.batchsize, -1)
-        return X_col
+    def img2col(self, X, kernel_size, padding, stride):
+        batchsize, in_c, l_in, l_in = X.shape
+        l_out = (l_in+2*padding-kernel_size)//stride + 1
+        
+        X = np.pad(X, ((0,0),(0,0),(padding,padding),(padding,padding)), 'constant')
+        col = np.zeros((batchsize, in_c, kernel_size, kernel_size, l_out, l_out))
+
+        for y in range(kernel_size):
+            y_max = y + stride*l_out
+            for x in range(kernel_size):
+                x_max = x + stride*l_out
+                col[:,:,y,x,:,:] = X[:,:,y:y_max:stride,x:x_max:stride]
+        
+        col = col.transpose(0,4,5,1,2,3).reshape(batchsize*l_out*l_out, -1)
+
+        return col
+
+    def col2img(self, col, X_shape, kernel_size, padding, stride):
+        batchsize, in_c, l_in, l_in = X_shape
+        l_out = (l_in+2*padding-kernel_size)//stride + 1
+
+        col = col.reshape(batchsize, l_out, l_out, in_c, kernel_size, kernel_size).transpose(0,3,4,5,1,2)
+        X = np.zeros((batchsize, in_c, l_in+2*padding+stride-1, l_in+2*padding+stride-1))
+
+        for y in range(kernel_size):
+            y_max = y + stride*l_out
+            for x in range(kernel_size):
+                x_max = x + stride*l_out
+                X[:,:,y:y_max:stride,x:x_max:stride] += col[:,:,y,x,:,:]
+        
+        return X[:, :, padding:l_in+padding, padding:l_in+padding]
 
     def forward(self, X):
-        # padding
         self.X = X
-        X = np.zeros((self.batchsize, self.in_channels, self.l_in+2*self.padding, self.l_in+2*self.padding))
-        X[:,:,self.padding:self.padding+self.l_in,self.padding:self.padding+self.l_in] = self.X
+        l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
 
-        self.l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
-
-        self.X_col = self.img2col(X, self.l_out, self.in_channels)
-        self.Y = np.dot(self.X_col, self.W.reshape(self.out_channels, -1).T) + self.b
-        self.Y = np.maximum(self.Y, 0, self.Y).reshape(self.batchsize, self.out_channels, self.l_out, self.l_out)
+        self.X_col = self.img2col(X, self.kernel_size, self.padding, self.stride) # shape: [n*l_out*l_out, in_c*k*k]
+        self.W_col = self.W.reshape(self.out_channels, -1).T # shape: [in_c*k*k, out_c]
+        self.Y = self.X_col@self.W_col + self.b
+        self.Y = self.Y.reshape(self.batchsize, l_out, l_out,self.out_channels).transpose(0,3,1,2) # shape: [n, out_c, l_out, l_out]
         return self.Y
     
     
-    def backward(self, dz):
-        dz_col = dz.transpose(0,2,3,1).reshape(-1, self.out_channels)
-        dW = np.dot(self.X_col.T, dz_col).T.reshape(self.W.shape)
+    def backward(self, dz, lr=0.01):
+        # dz shape: [n, out_c, l_out, l_out]
+        dz_col = dz.transpose(0,2,3,1).reshape(-1, self.out_channels) # shape: [n*l_out*l_out, out_c]
+        dW = np.dot(self.X_col.T, dz_col).T.reshape(self.W.shape) # shape: [in_c*k*k, out_c] to [out_c,in_c*k*k] to [out_c, in_c, k, k]
         db = np.sum(dz_col, axis=0)
-        self.W -= self.lr * dW / self.batchsize
-        self.b -= self.lr * db / self.batchsize
+        self.W -= lr * dW / self.batchsize
+        self.b -= lr * db / self.batchsize
 
+        dX_col = np.dot(dz_col, self.W_col.T) # shape: [n*l_out*l_out, in_c*k*k]
+        dX = self.col2img(dX_col, self.X.shape, self.kernel_size, self.padding, self.stride)
         
-        if self.l_out == self.l_in:
-            padding = self.kernel_size // 2
-        else:
-            padding = self.kernel_size - 1
-        dz_pad = np.zeros((self.batchsize, self.out_channels, self.l_out+2*padding, self.l_out+2*padding))
-        dz_pad[:,:,padding:padding+self.l_out,padding:padding+self.l_out] = dz
-
-        flip_w = np.flip(self.W, (2,3)).transpose(1,0,2,3)
-        dz_col = self.img2col(dz_pad, self.l_in, self.out_channels)
-        dX = np.dot(dz_col, flip_w.reshape(self.in_channels, -1).T)
-        return dX.reshape(self.batchsize, self.in_channels, self.l_in, self.l_in)
+        return dX
 
 
         
 class MaxPoolingLayer:
-    def __init__(self, in_shape, kernel_size, stride, padding = 0):
+    def __init__(self, in_shape, kernel_size, padding = 0):
         self.kernel_size, self.padding, self.stride = kernel_size, padding, kernel_size
         self.batchsize, self.in_channels, self.l_in, _ = in_shape
         self.l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
-        self.index = np.zeros(in_shape)
         
+
     def forward(self, X):
         self.X = X
+        self.index = np.zeros(X.shape)
         self.Y = np.zeros((self.batchsize, self.in_channels, self.l_out, self.l_out))
         for i in range(self.batchsize):
             for c in range(self.in_channels):
@@ -123,11 +131,10 @@ class MaxPoolingLayer:
         return np.repeat(np.repeat(dz, self.stride, axis=2), self.stride, axis=3) * self.index
 
 class LinearLayer:
-    def __init__(self, n_in, n_out, lr=0.01):
+    def __init__(self, n_in, n_out):
         self.n_in = n_in
         self.n_out = n_out
-        self.lr = lr
-        self.W = np.random.randn(n_in, n_out)
+        self.W = np.random.standard_normal((n_in, n_out))
         self.b = np.random.randn(n_out)
         
     def forward(self, X):
@@ -136,37 +143,86 @@ class LinearLayer:
         self.Y = np.dot(self.X, self.W) + self.b
         return self.Y
     
-    def backward(self, dz):
+    def backward(self, dz, lr=0.01):
         (n, _) = self.X.shape
         dX = np.dot(dz, self.W.T)
         dW = np.dot(self.X.T, dz)
         db = np.sum(dz, axis=0)
-        self.W -= self.lr * dW / n
-        self.b -= self.lr * db / n
+        self.W -= lr * dW / n
+        self.b -= lr * db / n
+        
         return dX
 
-def softmax(z):
-    tmp = np.exp(z)
-    return tmp/(np.sum(tmp,axis=1)[:,np.newaxis]*np.ones((1,tmp.shape[1])))
+class ReluLayer:
+    def __init__(self, leaky = 0):
+        self.leak = leaky
+    
+    def forward(self, X):
+        # leakyRelu
+        self.X = X
+        return np.maximum(X, self.leak*X)
+    
+    def backward(self, dz):
+        # leakyRelu
+        dz[self.X < 0] *= self.leak
+        return dz
 
-conv1 = ConvolutionLayer(X.shape, 3, kernel_size, padding, stride)
-pool = MaxPoolingLayer((batchsize, 3, 20, 20), pool_size, stride)
-linear = LinearLayer(100*3, 10)
+
+def softmax(x):
+    x = x.T
+    x = x - np.max(x, axis=0)
+    y = np.exp(x) / np.sum(np.exp(x), axis=0)
+    return y.T
+
+conv1 = ConvolutionLayer(X.shape, out_channels=6, kernel_size=5, padding=0, stride=1)
+relu1 = ReluLayer(0.01)
+pool1 = MaxPoolingLayer((batchsize, 6, 16, 16), kernel_size=2)
+
+conv2 = ConvolutionLayer((batchsize, 6, 8, 8), out_channels=16, kernel_size=5, padding=0, stride=1)
+relu2 = ReluLayer(0.01)
+pool2 = MaxPoolingLayer((batchsize, 16, 4, 4), kernel_size=2)
+
+linear1 = LinearLayer(16*2*2, 120)
+relu3 = ReluLayer(0.01)
+linear2 = LinearLayer(120,84)
+relu4 = ReluLayer(0.01)
+linear3 = LinearLayer(84,10)
+costs = []
 def train():
     for i in range(iteration):
-        z = conv1.forward(X)
-        z = pool.forward(z)
-        z= linear.forward(z)
+        z = pool1.forward(relu1.forward(conv1.forward(X)))
+        z = pool2.forward(relu2.forward(conv2.forward(z)))
+        z = relu3.forward(linear1.forward(z))
+        z = relu4.forward(linear2.forward(z))
+        z = linear3.forward(z)
         y_hat = softmax(z)
 
         dz = y_hat - Y
-        dz = linear.backward(dz)
-        dz = pool.backward(dz)
-        dz = conv1.backward(dz)
+        dz = linear3.backward(dz, lr)
+        dz = relu4.backward(dz)
+        dz = linear2.backward(dz, lr)
+        dz = relu3.backward(dz)
+        dz = linear1.backward(dz, lr)
+        dz = pool2.backward(dz)
+        dz = relu2.backward(dz)
+        dz = conv2.backward(dz, lr)
+        dz = pool1.backward(dz)
+        dz = relu1.backward(dz)
+        dz = conv1.backward(dz, lr)
 
-        if i % 5 == 0:
-            print(cost(y_hat, Y))
+        costs.append(cost(y_hat, Y))
+        print(f"iteration {i+1}: cost = {costs[-1]}")
+            
 
 train()
+plt.plot(costs)
+plt.show()
 
-# test(y_hat, Y)
+z = pool1.forward(relu1.forward(conv1.forward(X)))
+z = pool2.forward(relu2.forward(conv2.forward(z)))
+z = relu3.forward(linear1.forward(z))
+z = relu4.forward(linear2.forward(z))
+z = linear3.forward(z)
+y_hat = softmax(z)
+
+test(y_hat, Y)
