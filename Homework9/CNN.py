@@ -27,8 +27,8 @@ def test(Y_hat, Y):
     return acc
 
 
-iteration = 500###### Training loops
-lr = 0.00075###### Learning rate
+iteration = 1000###### Training loops
+lr = 0.0005###### Learning rate
 
 data = np.load("data.npy")
 
@@ -43,7 +43,7 @@ class ConvolutionLayer:
         self.out_channels = out_channels
         self.batchsize, self.in_channels, self.l_in, _ = in_shape
 
-        self.W = np.random.standard_normal(0(self.out_channels, self.in_channels, kernel_size, kernel_size))
+        self.W = np.random.standard_normal((self.out_channels, self.in_channels, kernel_size, kernel_size))
         self.b = np.random.rand(self.out_channels)
 
         self.relu = lambda x: max(0,x)
@@ -178,11 +178,11 @@ conv1 = ConvolutionLayer(X.shape, out_channels=6, kernel_size=5, padding=0, stri
 relu1 = ReluLayer(0.01)
 pool1 = MaxPoolingLayer((batchsize, 6, 16, 16), kernel_size=2)
 
-conv2 = ConvolutionLayer((batchsize, 6, 8, 8), out_channels=16, kernel_size=5, padding=0, stride=1)
+conv2 = ConvolutionLayer((batchsize, 6, 8, 8), out_channels=16, kernel_size=3, padding=0, stride=1)
 relu2 = ReluLayer(0.01)
-pool2 = MaxPoolingLayer((batchsize, 16, 4, 4), kernel_size=2)
+pool2 = MaxPoolingLayer((batchsize, 16, 6, 6), kernel_size=2)
 
-linear1 = LinearLayer(16*2*2, 120)
+linear1 = LinearLayer(16*3*3, 120)
 relu3 = ReluLayer(0.01)
 linear2 = LinearLayer(120,84)
 relu4 = ReluLayer(0.01)
