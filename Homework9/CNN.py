@@ -52,7 +52,7 @@ def softmax(x):
 (n, in_channel, L, _) = X.shape
 
 epoch = 10000###### Training loops
-lr = 0.0001###### Learning rate
+lr = 0.00001###### Learning rate
 batchsize = 100###### Batch size
 iteration = n // batchsize###### Number of batches in one epoch
 
@@ -67,7 +67,10 @@ cnn_seq:list[Net] = [
     ReluLayer(0.01),
     MaxPoolingLayer((batchsize, 16, 6, 6), kernel_size=2),
 
-    LinearLayer(16*3*3, 120),
+    ConvolutionLayer((batchsize, 16, 3, 3), out_channels=24, kernel_size=3, padding=1, stride=1),
+    ReluLayer(0.01),
+
+    LinearLayer(24*3*3, 120),
     ReluLayer(0.01),
     LinearLayer(120,84),
     ReluLayer(0.01),
