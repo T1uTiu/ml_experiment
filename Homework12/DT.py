@@ -84,7 +84,7 @@ def test(Y, X, features, tree):
     
     return np.mean(Y_hat == Y)
 
-data = np.loadtxt('ID3.txt', dtype="str", delimiter=',')
+data = np.loadtxt('test.txt', dtype="str", delimiter=',')
 features = data[0,:-1]
 X = data[1:,:-1]
 Y = data[1:,-1]
@@ -92,7 +92,7 @@ Y = data[1:,-1]
 tree = ID3(Y, X, features)
 print(tree)
 
-data = np.loadtxt('ID3.txt', dtype="str", delimiter=',')
+data = np.loadtxt('test.txt', dtype="str", delimiter=',')
 features = data[0,:-1]
 X = data[1:,:-1]
 Y = data[1:,-1]

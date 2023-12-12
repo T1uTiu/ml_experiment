@@ -3,6 +3,7 @@ from .net import Net
 
 class LinearLayer(Net):
     def __init__(self, n_in, n_out):
+        super().__init__()
         self.n_in = n_in
         self.n_out = n_out
         self.W = np.random.standard_normal((n_in, n_out))
@@ -19,7 +20,7 @@ class LinearLayer(Net):
         dX = np.dot(dz, self.W.T)
         dW = np.dot(self.X.T, dz)
         db = np.sum(dz, axis=0)
-        self.W -= lr * dW / n
-        self.b -= lr * db / n
+        self.W = self.optimizer.update(self.W, dW/n, lr)
+        self.b = self.optimizer.update(self.b, db/n, lr)
         
         return dX

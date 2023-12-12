@@ -5,12 +5,13 @@ from .net import Net
 class MaxPoolingLayer(Net):
     def __init__(self, in_shape, kernel_size, padding = 0):
         self.kernel_size, self.padding, self.stride = kernel_size, padding, kernel_size
-        self.batchsize, self.in_channels, self.l_in, _ = in_shape
+        self.in_channels, self.l_in, _ = in_shape
         self.l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
         
 
     def forward(self, X):
         self.X = X
+        self.batchsize, _, _, _ = X.shape
         self.index = np.zeros(X.shape)
         self.Y = np.zeros((self.batchsize, self.in_channels, self.l_out, self.l_out))
         for i in range(self.batchsize):
