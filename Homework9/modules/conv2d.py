@@ -60,8 +60,8 @@ class ConvolutionLayer(Net):
         dz_col = dz.transpose(0,2,3,1).reshape(-1, self.out_channels) # shape: [n*l_out*l_out, out_c]
         dW = np.dot(self.X_col.T, dz_col).T.reshape(self.W.shape) # shape: [in_c*k*k, out_c] to [out_c,in_c*k*k] to [out_c, in_c, k, k]
         db = np.sum(dz_col, axis=0)
-        self.W = self.optimizer.update(self.W, dW/self.batchsize, lr)
-        self.b = self.optimizer.update(self.b, db/self.batchsize, lr)
+        self.W = self.optimizerW.update(self.W, dW/self.batchsize, lr)
+        self.b = self.optimizerb.update(self.b, db/self.batchsize, lr)
 
         dX_col = np.dot(dz_col, self.W_col.T) # shape: [n*l_out*l_out, in_c*k*k]
         dX = self.col2img(dX_col, self.X.shape, self.kernel_size, self.padding, self.stride)

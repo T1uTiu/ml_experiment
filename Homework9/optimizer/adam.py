@@ -8,7 +8,7 @@ class Adam:
         self.t = 0
 
     def update(self, W, dW, lr):
-        if not hasattr(self, 'm'):
+        if not hasattr(self, 'v'):
             self.v = numpy.zeros_like(W)
             self.s = numpy.zeros_like(W)
 

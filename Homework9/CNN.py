@@ -39,11 +39,17 @@ def test(model: list[Net], X,  Y):
 
 
 
-data = np.load("data.npy")
+# data = np.load("data.npy")
 
-X = data[:,:-1].reshape(data.shape[0],1, 20, 20).transpose(0,1,3,2)
-Y = data[:,-1].astype(np.int32)
+# X = data[:,:-1].reshape(data.shape[0],1, 20, 20).transpose(0,1,3,2)
+# Y = data[:,-1].astype(np.int32)
+# Y = onehotEncoder(Y, 10)
+train_data = np.load("train_data.npy")
+X = train_data.reshape(train_data.shape[0], 28, 28)[:, np.newaxis, :, :]
+Y = np.load("train_label.npy")
 Y = onehotEncoder(Y, 10)
+test_data = np.load("test_data.npy")
+test_X = test_data.reshape(test_data.shape[0], 28, 28)[:, np.newaxis, :, :]
 
 
 def softmax(x):
@@ -56,30 +62,28 @@ def softmax(x):
 (n, in_channel, L, _) = X.shape
 
 epoch = 10000###### Training loops
-lr = 0.001###### Learning rate
-batchsize = 100###### Batch size
+lr = 0.01###### Learning rate
+batchsize = 10###### Batch size
 iteration = n // batchsize###### Number of batches in one epoch
-gamma = 0.9 # 学习率衰减系数
-step_size = 20 # 学习率衰减步长
 save_epoch = 20 # 保存模型的步长
 
 costs = []
 
 cnn_seq:list[Net] = [
-    ConvolutionLayer((1, 20, 20), out_channels=6, kernel_size=5, padding=0, stride=1),
+    ConvolutionLayer((1, 28, 28), out_channels=6, kernel_size=5, padding=0, stride=1),
     ReluLayer(0.01),
-    MaxPoolingLayer((6, 16, 16), kernel_size=2),
+    MaxPoolingLayer((6, 24, 24), kernel_size=2),
 
-    ConvolutionLayer((6, 8, 8), out_channels=16, kernel_size=3, padding=0, stride=1),
+    ConvolutionLayer((6, 12, 12), out_channels=16, kernel_size=5, padding=0, stride=1),
     ReluLayer(0.01),
-    MaxPoolingLayer((16, 6, 6), kernel_size=2),
+    MaxPoolingLayer((16, 8, 8), kernel_size=2),
 
-    ConvolutionLayer((16, 3, 3), out_channels=24, kernel_size=3, padding=1, stride=1),
-    ReluLayer(0.01),
+    # ConvolutionLayer((16, 4, 4), out_channels=24, kernel_size=3, padding=1, stride=1),
+    # ReluLayer(0.01),
 
-    LinearLayer(24*3*3, 120),
+    LinearLayer(16*4*4, 500),
     ReluLayer(0.01),
-    LinearLayer(120,84),
+    LinearLayer(500,84),
     ReluLayer(0.01),
     LinearLayer(84,10)
 ]
@@ -87,7 +91,7 @@ cnn_seq:list[Net] = [
 def loadWeights():
     global cnn_seq, costs
     try:
-        weights = np.load("weights/weights_68.npz")
+        weights = np.load("weights/weights.npz")
     except:
         print("No saved model found!")
     else:
@@ -95,7 +99,7 @@ def loadWeights():
             if hasattr(layer, "W"):
                 layer.W = weights[f"layer_W_{i}"]
                 layer.b = weights[f"layer_b_{i}"]
-        costs = np.load("weights/costs_68.npy").tolist()
+        costs = np.load("weights/costs.npy").tolist()
         print("Model loaded!")
 
 def saveWeights(step):
@@ -132,7 +136,7 @@ def train():
         if i % save_epoch == 0 and i != 0:
             saveWeights(len(costs)*iteration)
 
-loadWeights()
+# loadWeights()
 train()
 plt.plot(costs)
 plt.show()
