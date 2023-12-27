@@ -36,7 +36,15 @@ def test(model: list[Net], X,  Y):
       
     return acc
 
-
+def predict(model: list[Net], X):
+    z = model[0].forward(X)
+    for layer in model[1:]:
+        z = layer.forward(z)
+    Y_hat = softmax(z)
+    Y_hat = np.argmax(Y_hat, axis=1,keepdims=True)
+    n = X.shape[0]
+    idx = np.expand_dims(np.arange(0,n), axis=1)
+    np.savetxt("predict.csv", np.concatenate([idx, Y_hat], axis=1), header = "Index,ID", comments='', delimiter=',')
 
 
 # data = np.load("data.npy")
@@ -70,28 +78,26 @@ save_epoch = 20 # 保存模型的步长
 costs = []
 
 cnn_seq:list[Net] = [
-    ConvolutionLayer((1, 28, 28), out_channels=6, kernel_size=5, padding=0, stride=1),
-    ReluLayer(0.01),
-    MaxPoolingLayer((6, 24, 24), kernel_size=2),
+    ConvolutionLayer((1, 28, 28), out_channels=32, kernel_size=3, padding=1, stride=1),
+    ReluLayer(0),
 
-    ConvolutionLayer((6, 12, 12), out_channels=16, kernel_size=5, padding=0, stride=1),
-    ReluLayer(0.01),
-    MaxPoolingLayer((16, 8, 8), kernel_size=2),
+    ConvolutionLayer((32, 28, 28), out_channels=32, kernel_size=3, padding=1, stride=1),
+    ReluLayer(0),
+    
+    ConvolutionLayer((32, 28, 28), out_channels=64, kernel_size=3, padding=1, stride=1),
+    ReluLayer(0),
+    MaxPoolingLayer((64, 28, 28), kernel_size=2),
 
-    # ConvolutionLayer((16, 4, 4), out_channels=24, kernel_size=3, padding=1, stride=1),
-    # ReluLayer(0.01),
-
-    LinearLayer(16*4*4, 500),
-    ReluLayer(0.01),
-    LinearLayer(500,84),
-    ReluLayer(0.01),
-    LinearLayer(84,10)
+    ConvolutionLayer((64, 14, 14), out_channels=128, kernel_size=3, padding=1, stride=1),
+    LinearLayer(128 * 14 * 14, 512),
+    LinearLayer(512, 128),
+    LinearLayer(128, 10)
 ]
 
 def loadWeights():
     global cnn_seq, costs
     try:
-        weights = np.load("weights/weights.npz")
+        weights = np.load("weights/mymodel_numpy.npz")
     except:
         print("No saved model found!")
     else:
@@ -99,7 +105,7 @@ def loadWeights():
             if hasattr(layer, "W"):
                 layer.W = weights[f"layer_W_{i}"]
                 layer.b = weights[f"layer_b_{i}"]
-        costs = np.load("weights/costs.npy").tolist()
+        costs = np.load("weights/costs_12200.npy").tolist()
         print("Model loaded!")
 
 def saveWeights(step):
@@ -136,11 +142,11 @@ def train():
         if i % save_epoch == 0 and i != 0:
             saveWeights(len(costs)*iteration)
 
-# loadWeights()
-train()
-plt.plot(costs)
-plt.show()
 
-
+loadWeights()
+# train()
+# plt.plot(costs)
+# plt.show()
 
 # test(cnn_seq, X, Y)
+predict(cnn_seq, test_X)

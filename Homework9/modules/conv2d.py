@@ -44,15 +44,14 @@ class ConvolutionLayer(Net):
         return X[:, :, padding:l_in+padding, padding:l_in+padding]
 
     def forward(self, X):
-        self.X = X
         self.batchsize, _, _, _ = X.shape
         l_out = (self.l_in+2*self.padding-self.kernel_size)//self.stride + 1
 
         self.X_col = self.img2col(X, self.kernel_size, self.padding, self.stride) # shape: [n*l_out*l_out, in_c*k*k]
         self.W_col = self.W.reshape(self.out_channels, -1).T # shape: [in_c*k*k, out_c]
-        self.Y = self.X_col@self.W_col + self.b
-        self.Y = self.Y.reshape(self.batchsize, l_out, l_out,self.out_channels).transpose(0,3,1,2) # shape: [n, out_c, l_out, l_out]
-        return self.Y
+        Y = self.X_col@self.W_col + self.b
+        Y = Y.reshape(self.batchsize, l_out, l_out,self.out_channels).transpose(0,3,1,2) # shape: [n, out_c, l_out, l_out]
+        return Y
     
     
     def backward(self, dz, lr=0.01):
@@ -64,6 +63,6 @@ class ConvolutionLayer(Net):
         self.b = self.optimizerb.update(self.b, db/self.batchsize, lr)
 
         dX_col = np.dot(dz_col, self.W_col.T) # shape: [n*l_out*l_out, in_c*k*k]
-        dX = self.col2img(dX_col, self.X.shape, self.kernel_size, self.padding, self.stride)
+        dX = self.col2img(dX_col, (self.batchsize, self.in_channels, self.kernel_size, self.kernel_size), self.kernel_size, self.padding, self.stride)
         
         return dX
